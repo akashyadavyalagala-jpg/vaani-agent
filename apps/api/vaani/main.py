@@ -46,6 +46,8 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(console_router, prefix="/api/v1")
 app.include_router(twilio_ws_router)
 
+import os
+os.makedirs("data/recordings", exist_ok=True)
 app.mount("/recordings", StaticFiles(directory="data/recordings"), name="recordings")
 
 @app.on_event("shutdown")
