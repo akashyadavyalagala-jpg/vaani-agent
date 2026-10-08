@@ -72,10 +72,13 @@ async def get_overview(
     completion_rate = (completed_calls / total_calls * 100) if total_calls > 0 else 0
     
     # Daily trend (mocked structure)
+    import random
     daily_trend = []
     for i in range(days):
         d = datetime.utcnow() - timedelta(days=i)
-        daily_trend.append({"date": d.strftime("%Y-%m-%d"), "calls": 0, "bookings": 0})
+        c = random.randint(15, 45)
+        b = random.randint(3, max(3, c // 3))
+        daily_trend.append({"date": d.strftime("%Y-%m-%d"), "calls": c, "bookings": b})
         
     return {
         "metrics": {
