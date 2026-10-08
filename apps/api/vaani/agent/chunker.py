@@ -6,7 +6,7 @@ class SentenceChunker:
     Chunks an incoming token stream into sentences.
     Splits on `. ? ! ।` and optionally on clause breaks `,` if sentence is too long.
     """
-    def __init__(self, max_chars: int = 60):
+    def __init__(self, max_chars: int = 30):
         self.buffer = ""
         self.max_chars = max_chars
         # Matches sentence endings including Telugu punctuation

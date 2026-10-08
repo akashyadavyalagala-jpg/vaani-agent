@@ -161,7 +161,7 @@ export function useVoiceAgent(mockMode: boolean = false): VoiceAgentReturn {
           } else {
              // REAL VAD Logic
              if (stateRef.current === 'listening' && wsRef.current?.readyState === WebSocket.OPEN) {
-                 if (smoothedVolume > 0.3 && !isSpeakingRef.current) {
+                 if (smoothedVolume > 0.08 && !isSpeakingRef.current) {
                      isSpeakingRef.current = true;
                      silenceStartRef.current = 0;
                      audioChunksRef.current = [];
@@ -169,10 +169,10 @@ export function useVoiceAgent(mockMode: boolean = false): VoiceAgentReturn {
                          mediaRecorderRef.current.start();
                      }
                  } else if (isSpeakingRef.current) {
-                     if (smoothedVolume < 0.1) {
+                     if (smoothedVolume < 0.05) {
                          if (silenceStartRef.current === 0) silenceStartRef.current = Date.now();
-                         else if (Date.now() - silenceStartRef.current > 1000) {
-                             // 1s of silence -> stop recording
+                         else if (Date.now() - silenceStartRef.current > 700) {
+                             // silence -> stop recording
                              isSpeakingRef.current = false;
                              silenceStartRef.current = 0;
                              if (mediaRecorderRef.current?.state === 'recording') {
@@ -181,6 +181,26 @@ export function useVoiceAgent(mockMode: boolean = false): VoiceAgentReturn {
                          }
                      } else {
                          silenceStartRef.current = 0;
+                     }
+                 }
+             } else if (stateRef.current === 'speaking' && wsRef.current?.readyState === WebSocket.OPEN) {
+                 // INTERRUPT (barge-in) logic
+                 // If the user speaks loudly while agent is talking, interrupt the agent.
+                 if (smoothedVolume > 0.25) { 
+                     wsRef.current.send(JSON.stringify({ type: "interrupt" }));
+                     
+                     // Stop local audio playback immediately
+                     activeSourcesRef.current.forEach(source => {
+                         try { source.stop(); } catch (e) {}
+                     });
+                     activeSourcesRef.current = [];
+                     
+                     // Reset state and immediately start recording
+                     isSpeakingRef.current = true;
+                     silenceStartRef.current = 0;
+                     audioChunksRef.current = [];
+                     if (mediaRecorderRef.current?.state === 'inactive') {
+                         mediaRecorderRef.current.start();
                      }
                  }
              }
