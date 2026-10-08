@@ -73,40 +73,43 @@ class Orchestrator:
             messages = self.memory.get_messages(prompt)
             token_stream = llm.stream(messages)
             
-            chunker = SentenceChunker()
-            sentence_stream = chunker.chunk_stream(token_stream)
-            
             await self.change_state("SPEAKING")
             t_ttft = None
             seq = 0
             
             full_reply = ""
             agent_audio_buffer = bytearray()
+            total_audio_duration = 0.0
+            t_speaking_start = time.time()
             
-            async for raw_sentence in sentence_stream:
+            async for chunk in token_stream:
                 if t_ttft is None:
                     t_ttft = time.time()
                     metrics["llm_ttft_ms"] = (t_ttft - t0) * 1000
                 
-                sentence = normalize_telugu(raw_sentence)
-                full_reply += sentence + " "
+                full_reply += chunk
                 
                 from vaani.ws.protocol import ServerLlmDelta
-                await self.send(ServerLlmDelta(text=sentence + " "))
+                await self.send(ServerLlmDelta(text=chunk))
                 
-                # Mock TTS stream
-                audio_bytes = await tts.synthesize(sentence, "kavitha", 1.0)
+            # Now synthesize the full reply for completely smooth audio without breaks
+            if full_reply.strip():
+                from vaani.agent.normalize import normalize_telugu
+                clean_reply = normalize_telugu(full_reply)
+                audio_bytes = await tts.synthesize(clean_reply, "kavitha", 1.0)
                 agent_audio_buffer.extend(audio_bytes)
                 
-                if "tts_first_chunk_ms" not in metrics:
-                    metrics["tts_first_chunk_ms"] = (time.time() - t0) * 1000
-                    metrics["e2e_first_audio_ms"] = metrics["tts_first_chunk_ms"]
+                from vaani.utils.audio import get_wav_duration
+                total_audio_duration = get_wav_duration(audio_bytes)
+                
+                metrics["tts_first_chunk_ms"] = (time.time() - t0) * 1000
+                metrics["e2e_first_audio_ms"] = metrics["tts_first_chunk_ms"]
                 
                 from vaani.ws.protocol import ServerTtsChunk
                 import base64
                 b64 = base64.b64encode(audio_bytes).decode('utf-8')
-                await self.send(ServerTtsChunk(seq=seq, sentence_id=seq, wav_b64=b64))
-                seq += 1
+                await self.send(ServerTtsChunk(seq=0, sentence_id=0, wav_b64=b64))
+                t_speaking_start = time.time()
                 
             self.memory.add_agent_message(full_reply.strip())
             metrics["llm_total_ms"] = (time.time() - t0) * 1000
@@ -150,6 +153,13 @@ class Orchestrator:
             from vaani.ws.protocol import ServerTtsEnd
             await self.send(ServerTtsEnd())
             await self.send(ServerMetrics(timings=metrics))
+            
+            # Wait for audio to finish playing on frontend
+            elapsed_time = time.time() - t_speaking_start
+            sleep_time = total_audio_duration - elapsed_time
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+                
             await self.change_state("LISTENING")
             
         except asyncio.CancelledError:
