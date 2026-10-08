@@ -32,15 +32,15 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://afraid-eel-73.loca.lt/api/:path*'
+        destination: 'https://vaani-agent-a8vr.onrender.com/api/:path*'
       },
       {
         source: '/ws/:path*',
-        destination: 'https://afraid-eel-73.loca.lt/ws/:path*'
+        destination: 'https://vaani-agent-a8vr.onrender.com/ws/:path*'
       },
       {
         source: '/recordings/:path*',
-        destination: 'https://afraid-eel-73.loca.lt/recordings/:path*'
+        destination: 'https://vaani-agent-a8vr.onrender.com/recordings/:path*'
       }
     ];
   }
