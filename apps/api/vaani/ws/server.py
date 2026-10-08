@@ -33,6 +33,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     await orchestrator.handle_audio_end()
                 elif event.get("type") == "interrupt":
                     await orchestrator.interrupt()
+                elif event.get("type") == "text.input":
+                    await orchestrator.handle_text(event.get("text", ""))
     except WebSocketDisconnect:
         if orchestrator and not orchestrator.session_id.startswith("session_"):
             from vaani.database import AsyncSessionLocal

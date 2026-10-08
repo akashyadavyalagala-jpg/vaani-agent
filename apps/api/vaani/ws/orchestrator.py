@@ -43,19 +43,27 @@ class Orchestrator:
         from vaani.ws.protocol import ServerError
         self._audio_buffer.clear()
 
-    async def process_turn(self):
+    async def handle_text(self, text: str):
+        if self.state in ["SPEAKING", "THINKING"]:
+            await self.interrupt()
+        self._current_task = asyncio.create_task(self.process_turn(override_text=text))
+
+    async def process_turn(self, override_text: str = None):
         metrics = {}
         t0 = time.time()
         try:
             await self.change_state("TRANSCRIBING")
             
-            # Run STT
             audio_data = bytes(self._audio_buffer)
             self._audio_buffer.clear()
             
-            # Using audio/webm as default since browsers use it with MediaRecorder
-            transcript = await stt.transcribe(audio_data, "audio/webm")
-            metrics["stt_ms"] = (time.time() - t0) * 1000
+            if override_text:
+                transcript = override_text
+                metrics["stt_ms"] = 0
+            else:
+                # Run STT
+                transcript = await stt.transcribe(audio_data, "audio/webm")
+                metrics["stt_ms"] = (time.time() - t0) * 1000
             
             if not transcript or not transcript.strip():
                 await self.change_state("LISTENING")
