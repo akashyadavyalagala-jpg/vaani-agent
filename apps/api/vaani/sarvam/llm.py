@@ -55,10 +55,10 @@ async def stream(messages: List[Dict[str, str]]) -> AsyncGenerator[str, None]:
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "sarvam-105b",
+        "model": "sarvam-105b-conversations",
         "messages": messages,
         "stream": True,
-        "max_tokens": 80
+        "max_tokens": 200
     }
     
     # Intercept tool calls if they are raw (Sarvam might not strictly follow tool formats)
