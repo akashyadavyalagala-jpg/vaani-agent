@@ -95,7 +95,7 @@ class Orchestrator:
                 await self.send(ServerLlmDelta(text=sentence + " "))
                 
                 # Mock TTS stream
-                audio_bytes = await tts.synthesize(sentence, "kavitha_te_conversation", 1.0)
+                audio_bytes = await tts.synthesize(sentence, "kavitha", 1.0)
                 agent_audio_buffer.extend(audio_bytes)
                 
                 if "tts_first_chunk_ms" not in metrics:
