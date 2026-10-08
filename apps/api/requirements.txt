@@ -5,7 +5,7 @@ twilio
 pydantic
 pydantic-settings
 sarvamai
-SQLAlchemy
+SQLAlchemy[asyncio]
 alembic
 aiosqlite
 passlib[argon2]
