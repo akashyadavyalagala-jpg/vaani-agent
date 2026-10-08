@@ -1,9 +1,10 @@
 FROM python:3.11-slim
 
-# Install system dependencies (ffmpeg if needed for audio, though we use audioop)
+# Install system dependencies (ffmpeg is required for converting webm to wav for Sarvam API)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
