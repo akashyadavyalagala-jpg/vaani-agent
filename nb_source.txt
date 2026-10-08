@@ -1,0 +1,315 @@
+!pip install -U sarvamai
+----------------------------------------
+import os
+from getpass import getpass
+
+SARVAM_API_KEY = getpass("Paste your Sarvam API key: ")
+
+os.environ["SARVAM_API_KEY"] = SARVAM_API_KEY
+
+print("API key loaded.")
+----------------------------------------
+from sarvamai import SarvamAI
+
+client = SarvamAI(
+    api_subscription_key=os.environ["SARVAM_API_KEY"]
+)
+
+print("Sarvam client connected.")
+----------------------------------------
+response = client.chat.completions(
+    model="sarvam-105b",
+    messages=[
+        {
+            "role": "system",
+            "content": """
+You are a natural Telugu voice assistant.
+
+Rules:
+- Respond in Telugu.
+- Keep responses short.
+- Speak naturally.
+- Don't give unnecessary explanations.
+- Ask only one question at a time.
+"""
+        },
+        {
+            "role": "user",
+            "content": "నమస్కారం, మీరు ఎలా ఉన్నారు?"
+        }
+    ]
+)
+
+reply = response.choices[0].message.content
+
+print(reply)
+----------------------------------------
+# STEP 7 — Alternative version
+
+import base64
+from IPython.display import Audio, display
+
+text = "నమస్కారం! మీకు ఎలా సహాయం చేయగలను?"
+
+tts_response = client.text_to_speech.convert(
+    text=text,
+    language_code="te-IN",
+    model="bulbul:v3",
+    speaker="kavitha",
+    pace=1.0
+)
+
+audio_bytes = base64.b64decode(tts_response.audios[0])
+
+with open("assistant_test.wav", "wb") as f:
+    f.write(audio_bytes)
+
+print("TTS generated successfully!")
+
+display(Audio("assistant_test.wav"))
+----------------------------------------
+voices = [
+    "kavitha",
+    "rupali",
+    "priya",
+    "shreya",
+    "shruti",
+    "suhani",
+    "vijay"
+]
+
+test_text = "నమస్కారం. మీకు ఎలా సహాయం చేయగలను?"
+
+for voice in voices:
+    print("Testing:", voice)
+
+    response = client.text_to_speech.convert(
+        text=test_text,
+        language_code="te-IN",
+        model="bulbul:v3",
+        speaker=voice,
+        pace=1.0
+    )
+
+    audio_bytes = response.audios[0]
+
+    with open(f"{voice}.wav", "wb") as f:
+        import base64
+        f.write(base64.b64decode(audio_bytes))
+
+    display(Audio(f"{voice}.wav"))
+----------------------------------------
+!pip install -q soundfile scipy
+----------------------------------------
+from IPython.display import Javascript, display
+from google.colab.output import eval_js
+from base64 import b64decode
+
+def record_audio(filename="user_audio.wav", seconds=5):
+    js = Javascript("""
+    async function recordAudio(seconds) {
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+
+        recorder.ondataavailable = e => chunks.push(e.data);
+
+        recorder.start();
+
+        await new Promise(resolve =>
+            setTimeout(resolve, seconds * 1000)
+        );
+
+        recorder.stop();
+
+        await new Promise(resolve =>
+            recorder.onstop = resolve
+        );
+
+        stream.getTracks().forEach(track => track.stop());
+
+        const blob = new Blob(chunks, {type: 'audio/webm'});
+        const reader = new FileReader();
+
+        return await new Promise(resolve => {
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        });
+    }
+    """)
+
+    display(js)
+
+    data = eval_js(f"recordAudio({seconds})")
+
+    binary = b64decode(data.split(",")[1])
+
+    with open(filename, "wb") as f:
+        f.write(binary)
+
+    return filename
+----------------------------------------
+record_audio("user_audio.webm", seconds=5)
+
+print("Recording completed.")
+----------------------------------------
+stt_response = client.speech_to_text.transcribe(
+    file=open("user_audio.webm", "rb"),
+    model="saaras:v3",
+    mode="transcribe"
+)
+
+transcript = stt_response.transcript
+
+print("You said:")
+print(transcript)
+----------------------------------------
+import os
+import base64
+from IPython.display import Audio, display
+
+SYSTEM_PROMPT = """
+You are a natural Telugu voice assistant.
+
+You are speaking to a customer in a real-time conversation.
+
+Rules:
+1. Speak natural conversational Telugu.
+2. Keep answers short.
+3. Do not give long explanations.
+4. Ask only one question at a time.
+5. Never say "as an AI".
+6. If the customer uses Telugu + English, respond naturally.
+7. Do not repeat the customer's entire sentence.
+8. Sound friendly and human.
+"""
+
+def ask_agent(user_text):
+
+    # 1. LLM
+    response = client.chat.completions(
+        model="sarvam-105b",
+        messages=[
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
+                "role": "user",
+                "content": user_text
+            }
+        ]
+    )
+
+    reply = response.choices[0].message.content
+
+    print("\nAssistant:")
+    print(reply)
+
+    # 2. TTS
+    tts = client.text_to_speech.convert(
+        text=reply,
+        language_code="te-IN",
+        model="bulbul:v3",
+        speaker="kavitha",
+        pace=1.0
+    )
+
+    audio_bytes = base64.b64decode(
+        tts.audios[0]
+    )
+
+    filename = "assistant_response.wav"
+
+    with open(filename, "wb") as f:
+        f.write(audio_bytes)
+
+    # 3. Play
+    display(Audio(filename))
+
+    return reply
+----------------------------------------
+ask_agent(
+    "నమస్కారం, నాకు రేపు అపాయింట్మెంట్ కావాలి."
+)
+----------------------------------------
+def voice_turn(seconds=5):
+
+    # Record user
+    print("🎙️ Speak now...")
+
+    record_audio(
+        "user_audio.webm",
+        seconds=seconds
+    )
+
+    print("Processing...")
+
+    # STT
+    stt_response = client.speech_to_text.transcribe(
+        file=open("user_audio.webm", "rb"),
+        model="saaras:v3",
+        mode="transcribe"
+    )
+
+    transcript = stt_response.transcript
+
+    print("\nYou:")
+    print(transcript)
+
+    # LLM + TTS
+    return ask_agent(transcript)
+----------------------------------------
+voice_turn(seconds=5)
+----------------------------------------
+conversation = [
+    {
+        "role": "system",
+        "content": SYSTEM_PROMPT
+    }
+]
+----------------------------------------
+def ask_agent_with_memory(user_text):
+
+    conversation.append({
+        "role": "user",
+        "content": user_text
+    })
+
+    response = client.chat.completions(
+        model="sarvam-105b",
+        messages=conversation
+    )
+
+    reply = response.choices[0].message.content
+
+    conversation.append({
+        "role": "assistant",
+        "content": reply
+    })
+
+    print("\nAssistant:")
+    print(reply)
+
+    tts = client.text_to_speech.convert(
+        text=reply,
+        language_code="te-IN",
+        model="bulbul:v3",
+        speaker="kavitha",
+        pace=1.0
+    )
+
+    audio_bytes = base64.b64decode(
+        tts.audios[0]
+    )
+
+    with open("response.wav", "wb") as f:
+        f.write(audio_bytes)
+
+    display(Audio("response.wav"))
+
+    return reply
+----------------------------------------
+
+----------------------------------------

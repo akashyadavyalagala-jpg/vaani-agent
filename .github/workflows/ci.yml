@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pnpm
+        run: npm install -g pnpm
+      - name: Install JS dependencies
+        run: pnpm install
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python dependencies
+        run: |
+          cd apps/api
+          pip install -r requirements.txt
+      - name: Lint Python (Ruff)
+        run: |
+          cd apps/api
+          ruff check .
+      - name: Typecheck Python (Mypy)
+        run: |
+          cd apps/api
+          mypy .
+      - name: Test Python (Pytest)
+        run: |
+          cd apps/api
+          pytest
+      - name: Lint JS
+        run: pnpm lint
+      - name: Test JS
+        run: pnpm test
+
+  docker-build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API Docker Image
+        run: docker build -t vaani-api ./apps/api
+      - name: Build Web Docker Image
+        run: docker build -t vaani-web ./apps/web
