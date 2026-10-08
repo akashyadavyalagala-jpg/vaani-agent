@@ -33,7 +33,8 @@ vaani_error_rate = Counter('vaani_error_rate', 'Errors encountered during infere
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://vaani.example.com"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://vaani-agent-ten.vercel.app"],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
