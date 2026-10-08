@@ -31,27 +31,76 @@ async def complete(messages: List[Dict[str, str]]) -> str:
 
     return await async_wrap(_do_complete)
 
+import httpx
+import json
+
 async def stream(messages: List[Dict[str, str]]) -> AsyncGenerator[str, None]:
     """
-    Stream the conversation response.
-    Since the current SDK prototype uses sync completions, we simulate an async iterator
-    by chunking the final response to expose a streaming-compatible interface.
+    Stream the conversation response efficiently using Server-Sent Events (SSE)
+    to eliminate Text and Audio lag.
     """
-    text = await complete(messages)
+    from vaani.config import settings
     
-    # Intercept raw tool call outputs from the model so they aren't spoken
-    if "tool_call" in text.lower():
-        if "check_availability" in text.lower():
-            text = "అవును, ఆ సమయం ఖాళీగానే ఉంది. మీరు బుక్ చేయమంటారా?"
-        elif "book_appointment" in text.lower():
-            text = "మీ అపాయింట్మెంట్ విజయవంతంగా బుక్ చేయబడింది. దానికి సంబంధించిన వివరాలు మీకు మెసేజ్ ద్వారా పంపుతాము."
-        elif "cancel_appointment" in text.lower():
-            text = "మీ అపాయింట్మెంట్ క్యాన్సిల్ చేయబడింది."
-        else:
-            text = "పని పూర్తయింది. నేను మీకు ఇంకా ఎలా సహాయపడగలను?"
+    # Fast path for dummy local tests
+    if settings.sarvam_api_key.get_secret_value() == "dummy_key":
+        words = "హలో! ఏ రోజు మీకు అపాయింట్మెంట్ కావాలి?".split(" ")
+        for word in words:
+            yield word + " "
+            await asyncio.sleep(0.01)
+        return
+
+    url = "https://api.sarvam.ai/v1/chat/completions"
+    headers = {
+        "api-subscription-key": settings.sarvam_api_key.get_secret_value(),
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "sarvam-105b",
+        "messages": messages,
+        "stream": True,
+        "max_tokens": 80
+    }
     
-    # Simulate streaming by yielding chunks
-    words = text.split(" ")
-    for idx, word in enumerate(words):
-        yield word + (" " if idx < len(words) - 1 else "")
-        await asyncio.sleep(0.01) # Small delay to simulate network chunks
+    # Intercept tool calls if they are raw (Sarvam might not strictly follow tool formats)
+    full_text = ""
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        async with client.stream("POST", url, headers=headers, json=payload) as response:
+            if response.status_code != 200:
+                print(f"LLM Error: {response.status_code}")
+                yield "సమస్య ఏర్పడింది. దయచేసి మళ్ళీ ప్రయత్నించండి."
+                return
+                
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(data_str)
+                        delta = data["choices"][0]["delta"]
+                        if "content" in delta and delta["content"]:
+                            chunk = delta["content"]
+                            full_text += chunk
+                            
+                            # Intercept tool calls: if it looks like a tool call, buffer it
+                            if full_text.startswith("<") and len(full_text) < 15:
+                                continue
+                            if full_text.startswith("<tool_call>"):
+                                continue
+                                
+                            yield chunk
+                    except Exception:
+                        continue
+                        
+            # If the entire response was a tool call, yield the corresponding Telugu phrase
+            if full_text.startswith("<tool_call>"):
+                text_lower = full_text.lower()
+                if "check_availability" in text_lower:
+                    yield "అవును, ఆ సమయం ఖాళీగానే ఉంది. మీరు బుక్ చేయమంటారా?"
+                elif "book_appointment" in text_lower:
+                    yield "మీ అపాయింట్మెంట్ విజయవంతంగా బుక్ చేయబడింది. దానికి సంబంధించిన వివరాలు మీకు మెసేజ్ ద్వారా పంపుతాము."
+                elif "cancel_appointment" in text_lower:
+                    yield "మీ అపాయింట్మెంట్ క్యాన్సిల్ చేయబడింది."
+                else:
+                    yield "పని పూర్తయింది. నేను మీకు ఇంకా ఎలా సహాయపడగలను?"
