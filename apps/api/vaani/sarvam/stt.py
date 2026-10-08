@@ -34,13 +34,11 @@ async def _transcode_to_wav(audio_bytes: bytes) -> bytes:
 async def transcribe(audio_bytes: bytes, mime: str) -> str:
     """
     Transcribe audio bytes using Sarvam STT.
-    If the API rejects the format, transcodes to WAV and retries.
+    Always transcodes to WAV first to ensure compatibility and prevent silent empty transcripts.
     """
     client = get_client()
     
     def _do_transcribe(data: bytes, filename: str) -> str:
-        # In a real app we might pass bytes directly or write to a tmp file 
-        # since the Sarvam SDK typically expects a file-like object with a name.
         with tempfile.NamedTemporaryFile(suffix=filename, delete=False) as tmp:
             tmp_name = tmp.name
             tmp.write(data)
@@ -57,15 +55,7 @@ async def transcribe(audio_bytes: bytes, mime: str) -> str:
             if os.path.exists(tmp_name):
                 os.remove(tmp_name)
 
-    # First attempt with original bytes
-    ext = ".webm" if "webm" in mime.lower() else ".wav"
-    try:
-        transcript = await async_wrap(_do_transcribe, audio_bytes, ext)
-        return transcript
-    except SarvamAPIError as e:
-        if "400" in str(e) or "codec" in str(e).lower() or "format" in str(e).lower():
-            # Transparently transcode
-            wav_bytes = await _transcode_to_wav(audio_bytes)
-            transcript = await async_wrap(_do_transcribe, wav_bytes, ".wav")
-            return transcript
-        raise
+    # Always transcode browser audio to clean 16kHz mono WAV for Sarvam
+    wav_bytes = await _transcode_to_wav(audio_bytes)
+    transcript = await async_wrap(_do_transcribe, wav_bytes, ".wav")
+    return transcript
