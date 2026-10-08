@@ -34,7 +34,7 @@ class BusinessConfig(BaseModel):
     }
     languages: List[str] = ["Telugu", "English"]
     greeting: str = "నమస్కారం! వాణి క్లినిక్ కి స్వాగతం. నేను మీకు ఎలా సహాయపడగలను?"
-    voice: str = "kavitha"
+    voice: str = "kavitha_te_conversation"
     pace: float = 1.0
     tone_dial: ToneDial = ToneDial.FORMAL
     handoff_phone_number: str = "+919876543210"
