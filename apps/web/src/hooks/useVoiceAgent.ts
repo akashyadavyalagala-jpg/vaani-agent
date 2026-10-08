@@ -240,13 +240,14 @@ export function useVoiceAgent(mockMode: boolean = false): VoiceAgentReturn {
            }
         };
 
-        // Real WebSocket Connection via Next.js Proxy
+        // Real WebSocket Connection
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host; // e.g. localhost:3000
         
         let sessionId = "";
         try {
-           const res = await fetch(`http://${host}/api/v1/sessions/new`, { method: 'POST', headers: { 'bypass-tunnel-reminder': 'true' } });
+           const apiUrl = process.env.NEXT_PUBLIC_API_URL || `http://${host}/api/v1`;
+           const res = await fetch(`${apiUrl}/sessions/new`, { method: 'POST', headers: { 'bypass-tunnel-reminder': 'true' } });
            if (!res.ok) throw new Error("Failed to create session");
            const data = await res.json();
            sessionId = data.session_id;
@@ -258,7 +259,8 @@ export function useVoiceAgent(mockMode: boolean = false): VoiceAgentReturn {
            setSessionId(sessionId);
         }
 
-        const ws = new WebSocket(`${wsProtocol}//${host}/ws/session`);
+        const wsBaseUrl = process.env.NEXT_PUBLIC_WS_URL || `${wsProtocol}//${host}/ws`;
+        const ws = new WebSocket(`${wsBaseUrl}/session`);
         wsRef.current = ws;
 
         ws.onopen = () => {
